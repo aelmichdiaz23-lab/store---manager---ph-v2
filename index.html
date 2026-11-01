@@ -1,0 +1,196 @@
+
+<!DOCTYPE html>
+<html lang="tl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#166534">
+<title>Store Manager PH</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#172033}
+header{background:#166534;color:white;padding:20px 16px}
+header h1{margin:0 0 6px;font-size:24px}
+main{max-width:760px;margin:auto;padding:14px}
+section{background:white;padding:16px;margin-bottom:14px;border-radius:12px;box-shadow:0 2px 6px #0001}
+h2{font-size:19px;margin-top:0;color:#166534}
+input,select,button{width:100%;padding:12px;margin:5px 0;border-radius:8px;font-size:16px}
+input,select{border:1px solid #cbd5e1;background:white}
+button{border:0;background:#166534;color:white;font-weight:bold;cursor:pointer}
+.small{font-size:13px;color:#64748b}
+.stat{font-size:23px;font-weight:bold;margin:8px 0}
+.item{border-bottom:1px solid #e2e8f0;padding:10px 0;overflow-wrap:anywhere}
+.danger{background:#b91c1c}
+</style>
+</head>
+<body>
+<header>
+<h1>🏪 Store Manager PH</h1>
+<div>Tagapamahala ng iyong sari-sari store</div>
+</header>
+<main>
+<section>
+<h2>📊 Buod ng Negosyo</h2>
+Benta ngayong araw:
+<div class="stat" id="todaySales">₱0.00</div>
+Tinatayang tubo ngayong araw:
+<div class="stat" id="todayProfit">₱0.00</div>
+Kabuuang hindi pa bayad na utang:
+<div class="stat" id="debtTotal">₱0.00</div>
+<div class="small">Naka-save ang datos sa browser ng cellphone na ito.</div>
+</section>
+
+<section>
+<h2>📦 Magdagdag ng Paninda</h2>
+<input id="pname" placeholder="Pangalan ng paninda">
+<input id="pcost" type="number" min="0" step="0.01" placeholder="Presyo ng bili">
+<input id="pprice" type="number" min="0" step="0.01" placeholder="Presyo ng benta">
+<input id="pstock" type="number" min="0" step="1" placeholder="Dami ng stock">
+<button onclick="addProduct()">I-save ang Paninda</button>
+</section>
+
+<section>
+<h2>📋 Listahan ng Paninda</h2>
+<div id="products">Wala pang paninda.</div>
+</section>
+
+<section>
+<h2>💰 Magtala ng Benta</h2>
+<select id="saleProduct"></select>
+<input id="saleQty" type="number" min="1" step="1" value="1" placeholder="Dami ng nabenta">
+<button onclick="addSale()">I-record ang Benta</button>
+</section>
+
+<section>
+<h2>🧾 Kasaysayan ng Benta</h2>
+<div id="salesList">Wala pang naitalang benta.</div>
+</section>
+
+<section>
+<h2>📝 Magtala ng Utang</h2>
+<input id="dname" placeholder="Pangalan ng umutang">
+<input id="damount" type="number" min="0.01" step="0.01" placeholder="Halaga ng utang">
+<button onclick="addDebt()">I-save ang Utang</button>
+</section>
+
+<section>
+<h2>📒 Mga Utang</h2>
+<div id="debtsList">Wala pang utang.</div>
+</section>
+
+<section>
+<h2>📈 Ulat ng Negosyo</h2>
+<div id="report"></div>
+<button onclick="exportData()">I-download ang Backup ng Datos</button>
+<p class="small">Itago ang backup file para may kopya ka ng records.</p>
+</section>
+</main>
+
+<script>
+const KEY="storeManagerPH_v1";
+let db;
+try {
+  db=JSON.parse(localStorage.getItem(KEY))||{products:[],sales:[],debts:[]};
+} catch(e) {
+  db={products:[],sales:[],debts:[]};
+}
+function save(){
+  try {
+    localStorage.setItem(KEY,JSON.stringify(db));
+    render();
+  } catch(e) {
+    alert("Hindi na-save ang datos. Tingnan ang storage ng browser.");
+  }
+}
+function money(n){
+  return "₱"+Number(n||0).toLocaleString("en-PH",{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function safe(s){
+  return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function addProduct(){
+  let name=document.getElementById("pname").value.trim();
+  let cost=Number(document.getElementById("pcost").value);
+  let price=Number(document.getElementById("pprice").value);
+  let stock=Number(document.getElementById("pstock").value);
+  if(!name||document.getElementById("pcost").value===""||
+  document.getElementById("pprice").value===""||
+  document.getElementById("pstock").value===""||
+  cost<0||price<0||!Number.isInteger(stock)||stock<0){
+    alert("Pakilagyan nang tama ang lahat ng detalye.");return;
+  }
+  db.products.push({id:Date.now()+Math.random(),name,cost,price,stock});
+  ["pname","pcost","pprice","pstock"].forEach(id=>document.getElementById(id).value="");
+  save();
+}
+function addSale(){
+  let id=Number(document.getElementById("saleProduct").value);
+  let qty=Number(document.getElementById("saleQty").value);
+  let p=db.products.find(x=>x.id===id);
+  if(!p){alert("Magdagdag muna ng paninda.");return;}
+  if(!Number.isInteger(qty)||qty<1){alert("Ilagay ang tamang dami.");return;}
+  if(qty>p.stock){alert("Kulang ang stock ng panindang ito.");return;}
+  p.stock-=qty;
+  db.sales.push({name:p.name,qty,price:p.price,cost:p.cost,date:new Date().toISOString()});
+  document.getElementById("saleQty").value=1;
+  save();
+}
+function addDebt(){
+  let name=document.getElementById("dname").value.trim();
+  let amount=Number(document.getElementById("damount").value);
+  if(!name||!document.getElementById("damount").value||amount<=0){
+    alert("Ilagay ang pangalan at tamang halaga.");return;
+  }
+  db.debts.push({id:Date.now()+Math.random(),name,amount,paid:0,date:new Date().toISOString()});
+  document.getElementById("dname").value="";
+  document.getElementById("damount").value="";
+  save();
+}
+function payDebt(id){
+  let d=db.debts.find(x=>x.id===id);
+  if(!d)return;
+  let left=d.amount-d.paid;
+  let val=Number(prompt("Magkano ang ibabayad? Natitirang utang: "+money(left)));
+  if(!Number.isFinite(val)||val<=0||val>left){
+    alert("Hindi valid ang halaga.");return;
+  }
+  d.paid+=val;save();
+}
+function render(){
+  const now=new Date();
+  const today=db.sales.filter(s=>{
+    let d=new Date(s.date);
+    return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()&&d.getDate()===now.getDate();
+  });
+  document.getElementById("todaySales").textContent=money(today.reduce((a,s)=>a+s.price*s.qty,0));
+  document.getElementById("todayProfit").textContent=money(today.reduce((a,s)=>a+(s.price-s.cost)*s.qty,0));
+  document.getElementById("debtTotal").textContent=money(db.debts.reduce((a,d)=>a+d.amount-d.paid,0));
+  document.getElementById("products").innerHTML=db.products.length?db.products.map(p=>
+    `<div class="item"><b>${safe(p.name)}</b><br>Stock: ${p.stock}<br>Bili: ${money(p.cost)} | Benta: ${money(p.price)}</div>`
+  ).join(""):"Wala pang paninda.";
+  let sel=document.getElementById("saleProduct");
+  sel.innerHTML=db.products.length?db.products.map(p=>
+    `<option value="${p.id}">${safe(p.name)} — stock ${p.stock} — ${money(p.price)}</option>`
+  ).join(""):'<option value="">Magdagdag muna ng paninda</option>';
+  document.getElementById("salesList").innerHTML=db.sales.length?db.sales.slice().reverse().map(s=>
+    `<div class="item">${safe(s.name)} × ${s.qty}<br>${money(s.price*s.qty)} <span class="small">${new Date(s.date).toLocaleString("en-PH")}</span></div>`
+  ).join(""):"Wala pang naitalang benta.";
+  document.getElementById("debtsList").innerHTML=db.debts.length?db.debts.map(d=>
+    `<div class="item"><b>${safe(d.name)}</b><br>Utang: ${money(d.amount)}<br>Bayad: ${money(d.paid)}<br>Natitira: ${money(d.amount-d.paid)}${d.paid<d.amount?`<button onclick="payDebt(${d.id})">Magtala ng Bayad</button>`:"<b>Bayad na</b>"}</div>`
+  ).join(""):"Wala pang utang.";
+  const total=db.sales.reduce((a,s)=>a+s.price*s.qty,0);
+  const profit=db.sales.reduce((a,s)=>a+(s.price-s.cost)*s.qty,0);
+  document.getElementById("report").innerHTML=
+    "Kabuuang benta: <b>"+money(total)+"</b><br>Kabuuang tinatayang tubo: <b>"+money(profit)+"</b><br>Kabuuang transaksiyon: <b>"+db.sales.length+"</b><br>Mga paninda: <b>"+db.products.length+"</b>";
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="store-manager-backup.json";a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+render();
+</script>
+</body>
+</html>
